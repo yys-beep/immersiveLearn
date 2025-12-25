@@ -17,7 +17,7 @@ const INITIAL_GRAPH: GraphData = {
 const INITIAL_MESSAGE: Message = {
   id: 'init-1',
   role: 'model',
-  content: 'Welcome, explorer. I am ready to construct your knowledge architecture. What topic shall we visualize today?',
+  content: 'SYSTEM REBOOTED. Welcome, explorer. I am ready to construct your knowledge architecture. What topic shall we visualize today?',
   timestamp: Date.now()
 };
 
