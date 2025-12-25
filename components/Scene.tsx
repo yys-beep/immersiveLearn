@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { detectHands, initializeHandLandmarker } from '../services/visionService';
 import Graph3D from './Graph3D';
+// Ensure correct import
 import { GraphData, GraphNode, HandGesture } from '../services/types';
 
 interface SceneProps {
@@ -52,9 +53,7 @@ const Scene: React.FC<SceneProps> = ({ graphData, onNodeSelect, onNodeHover }) =
         cursorRef.current.style.left = `${detectedGesture.pointer.x * 100}%`;
         cursorRef.current.style.top = `${detectedGesture.pointer.y * 100}%`;
         
-        // --- CURSOR STYLES BASED ON MODE ---
         if (detectedGesture.gestureMode === 'zoom') {
-          // Green Zoom
           cursorRef.current.style.backgroundColor = 'rgba(34, 197, 94, 0.3)';
           cursorRef.current.style.boxShadow = '0 0 20px #22c55e';
           cursorRef.current.style.borderColor = '#4ade80';
@@ -62,7 +61,6 @@ const Scene: React.FC<SceneProps> = ({ graphData, onNodeSelect, onNodeHover }) =
           cursorRef.current.style.height = '64px';
           cursorRef.current.innerHTML = '<div class="absolute -top-8 left-1/2 -translate-x-1/2 text-green-400 font-bold text-xs whitespace-nowrap">✋ ZOOMING</div>';
         } else if (detectedGesture.isPinching) {
-          // Yellow Pinch
           cursorRef.current.style.backgroundColor = 'rgba(250, 204, 21, 0.9)'; 
           cursorRef.current.style.boxShadow = '0 0 15px #facc15';
           cursorRef.current.style.borderColor = '#fef08a';
@@ -70,7 +68,6 @@ const Scene: React.FC<SceneProps> = ({ graphData, onNodeSelect, onNodeHover }) =
           cursorRef.current.style.height = '32px';
           cursorRef.current.innerHTML = '<div class="absolute -top-8 left-1/2 -translate-x-1/2 text-yellow-300 font-bold text-xs whitespace-nowrap">✊ ROTATING</div>';
         } else {
-          // Blue Pointer
           cursorRef.current.style.backgroundColor = 'transparent';
           cursorRef.current.style.boxShadow = '0 0 10px #22d3ee';
           cursorRef.current.style.borderColor = '#22d3ee';
@@ -95,7 +92,8 @@ const Scene: React.FC<SceneProps> = ({ graphData, onNodeSelect, onNodeHover }) =
         className="absolute inset-0 w-full h-full object-cover opacity-60 z-0"
         style={{ transform: 'scaleX(-1)' }}
       />
-      <div className="absolute inset-0 z-10">
+      {/* FIX: Added pointer-events-auto to ensure mouse reaches the graph */}
+      <div className="absolute inset-0 z-10 pointer-events-auto">
         <Graph3D
           width={dimensions.width}
           height={dimensions.height}
