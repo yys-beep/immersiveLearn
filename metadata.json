@@ -1,0 +1,8 @@
+{
+  "name": "ImmersiLearn",
+  "description": "An AI-powered AR 3D Knowledge Graph application. Visualize concepts in 3D space, interact via hand gestures, and build a personalized knowledge system.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
