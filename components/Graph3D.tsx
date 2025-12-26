@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import ForceGraph3D from 'react-force-graph-3d';
 import { GraphData, GraphNode, HandGesture } from '../services/types';
 import * as THREE from 'three';
+import { forceCollide } from 'd3-force-3d'; 
 
 interface Graph3DProps {
   data: GraphData;
@@ -49,11 +50,21 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
             };
           }
     
-          // 2. VISUALS (Locked)
-          graph.d3Force('link')?.distance(400);     
-          graph.d3Force('charge')?.strength(-6000); 
-          graph.d3Force('center')?.strength(0.1);  
-          
+          // 2. VISUALS & PHYSICS
+          // 链路距离略增，减轻吸引拥挤；strength 略降
+          graph.d3Force('link')?.distance(480).strength(0.6);
+          // 排斥力更强，让节点彼此分开
+          graph.d3Force('charge')?.strength(-9000);
+          // 轻微中心力，避免过度向原点挤
+          graph.d3Force('center')?.strength(0.02);
+
+          // ✅ 防重叠：基于节点半径的碰撞力
+          const collideRadius = (n: any) => {
+            const r = (n?.val || 20) * 2; // 与 sphere 半径一致
+            return r * 1.15;              // 略放大，留出空隙
+          };
+          graph.d3Force('collision', forceCollide(collideRadius).iterations(2));
+
           if (graph.d3AlphaDecay) graph.d3AlphaDecay(0.01); 
           if (graph.d3VelocityDecay) graph.d3VelocityDecay(0.1);
     
