@@ -11,10 +11,23 @@ interface Graph3DProps {
   hoverNodeId: string | null;
   onNodeClick: (node: GraphNode) => void;
   onNodeHover?: (node: GraphNode | null) => void;
+  onNodeProximate?: (node: GraphNode) => void;
   gestureRef: React.MutableRefObject<HandGesture | null>;
 }
 
-const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onNodeClick, onNodeHover, gestureRef }) => {
+const PROXIMITY_THRESHOLD = 180;
+const PROXIMITY_COOLDOWN = 3000;
+
+const Graph3D: React.FC<Graph3DProps> = ({ 
+  data, 
+  width, 
+  height, 
+  hoverNodeId, 
+  onNodeClick, 
+  onNodeHover, 
+  onNodeProximate, 
+  gestureRef 
+}) => {
   const fgRef = useRef<any>(null);
   const [mounted, setMounted] = useState(false);
   
@@ -22,6 +35,8 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
   const wasPinching = useRef<boolean>(false);
   const zoomStabilityFrames = useRef(0);
   const raycaster = useRef(new THREE.Raycaster());
+  
+  const lastTriggerRef = useRef<number>(0);
 
   useEffect(() => {
     if (raycaster.current && raycaster.current.params && raycaster.current.params.Points) {
@@ -30,13 +45,11 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
     setMounted(true);
   }, []);
 
-  // --- PHYSICS & CAMERA CONFIGURATION ---
   useEffect(() => {
     const timer = setTimeout(() => {
         if (fgRef.current) {
           const graph = fgRef.current;
           
-          // 1. UNLOCK CAMERA
           const controls = graph.controls ? graph.controls() : null;
           if (controls) {
             controls.maxDistance = 20000; 
@@ -50,25 +63,19 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
             };
           }
     
-          // 2. VISUALS & PHYSICS
-          // 链路距离略增，减轻吸引拥挤；strength 略降
           graph.d3Force('link')?.distance(480).strength(0.6);
-          // 排斥力更强，让节点彼此分开
           graph.d3Force('charge')?.strength(-9000);
-          // 轻微中心力，避免过度向原点挤
           graph.d3Force('center')?.strength(0.02);
 
-          // ✅ 防重叠：基于节点半径的碰撞力
           const collideRadius = (n: any) => {
-            const r = (n?.val || 20) * 2; // 与 sphere 半径一致
-            return r * 1.15;              // 略放大，留出空隙
+            const r = (n?.val || 20) * 2;
+            return r * 1.15;
           };
           graph.d3Force('collision', forceCollide(collideRadius).iterations(2));
 
           if (graph.d3AlphaDecay) graph.d3AlphaDecay(0.01); 
           if (graph.d3VelocityDecay) graph.d3VelocityDecay(0.1);
     
-          // 3. CENTROID TARGETING (Blank Screen Fix)
           if (data.nodes.length > 0) {
              let avgX = 0, avgY = 0, avgZ = 0;
              let count = 0;
@@ -105,7 +112,50 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
   }, [data, mounted]); 
 
   const interactionLoop = useCallback(() => {
-    if (!fgRef.current || !gestureRef.current) {
+    if (!fgRef.current) {
+        requestAnimationFrame(interactionLoop);
+        return;
+    }
+
+    const graph = fgRef.current;
+
+    if (onNodeProximate) {
+        const cameraPos = graph.cameraPosition();
+        const now = Date.now();
+
+        if (now - lastTriggerRef.current > PROXIMITY_COOLDOWN) {
+            let closestNode: GraphNode | null = null;
+            let minDistance = Infinity;
+
+            for (const node of data.nodes) {
+                if (node.isExpanded) continue;
+                
+                const nx = (node as any).x;
+                const ny = (node as any).y;
+                const nz = (node as any).z;
+
+                if (typeof nx === 'number' && typeof ny === 'number' && typeof nz === 'number') {
+                    const dist = Math.sqrt(
+                        Math.pow(cameraPos.x - nx, 2) +
+                        Math.pow(cameraPos.y - ny, 2) +
+                        Math.pow(cameraPos.z - nz, 2)
+                    );
+
+                    if (dist < PROXIMITY_THRESHOLD && dist < minDistance) {
+                        minDistance = dist;
+                        closestNode = node;
+                    }
+                }
+            }
+
+            if (closestNode) {
+                lastTriggerRef.current = now;
+                onNodeProximate(closestNode);
+            }
+        }
+    }
+
+    if (!gestureRef.current) {
       prevPointer.current = null;
       wasPinching.current = false;
       zoomStabilityFrames.current = 0;
@@ -114,11 +164,7 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
     }
 
     const gesture = gestureRef.current;
-    const graph = fgRef.current;
     
-    // =========================================================
-    // PRIORITY 1: ROTATION (FIST) - TUNED FOR SPEED
-    // =========================================================
     if (gesture.isPinching) {
         zoomStabilityFrames.current = 0;
         if (onNodeHover) onNodeHover(null);
@@ -132,16 +178,13 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
             if (isNaN(deltaX)) deltaX = 0;
             if (isNaN(deltaY)) deltaY = 0;
             
-            // 1. DEADZONE: Reduced for sensitivity
             if (Math.abs(deltaX) < 0.0005) deltaX = 0;
             if (Math.abs(deltaY) < 0.0005) deltaY = 0;
 
-            // 2. SPEED LIMIT: Increased for faster swipes
             const MAX_SPEED = 0.25; 
             deltaX = Math.max(Math.min(deltaX, MAX_SPEED), -MAX_SPEED);
             deltaY = Math.max(Math.min(deltaY, MAX_SPEED), -MAX_SPEED);
 
-            // 3. SENSITIVITY: Boosted (12.0)
             const ROTATION_SPEED = 12.0; 
             const currentPos = graph.cameraPosition(); 
 
@@ -171,15 +214,11 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
         wasPinching.current = true;
     }
     
-    // =========================================================
-    // PRIORITY 2: ZOOM (PALM UP/DOWN) - FASTER RESPONSE
-    // =========================================================
     else if (gesture.gestureMode === 'zoom') {
        if (onNodeHover) onNodeHover(null); 
        wasPinching.current = false;
        zoomStabilityFrames.current += 1;
 
-       // Faster Stability Check: Only wait 5 frames (approx 0.08s)
        if (zoomStabilityFrames.current > 5) {
            if (!prevPointer.current) {
                prevPointer.current = { x: gesture.pointer.x, y: gesture.pointer.y };
@@ -188,7 +227,6 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
                const currentPos = graph.cameraPosition();
                
                if (currentPos && isFinite(currentPos.z)) {
-                   // Boosted Zoom Multiplier (6000)
                    let newZ = currentPos.z + (deltaY * 6000); 
                    newZ = Math.max(200, Math.min(newZ, 20000));
 
@@ -201,9 +239,6 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
        }
     } 
     
-    // =========================================================
-    // PRIORITY 3: POINTING (HOVER & CLICK)
-    // =========================================================
     else {
         zoomStabilityFrames.current = 0;
         prevPointer.current = null; 
@@ -256,13 +291,11 @@ const Graph3D: React.FC<Graph3DProps> = ({ data, width, height, hoverNodeId, onN
     }
 
     requestAnimationFrame(interactionLoop);
-  }, [onNodeClick, onNodeHover, gestureRef]);
+  }, [onNodeClick, onNodeHover, onNodeProximate, data.nodes, gestureRef]);
 
   useEffect(() => {
     requestAnimationFrame(interactionLoop);
   }, [interactionLoop]);
-
-  // --- RENDERERS ---
 
   const stringToColor = (str: string = '') => {
     if (!str) return '#ffffff'; 
