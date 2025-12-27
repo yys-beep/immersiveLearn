@@ -1,9 +1,14 @@
 export interface GraphNode {
   id: string;
   label: string;
-  category?: string;
-  val?: number; 
+  category: string;
   desc?: string;
+  val?: number;
+  color?: string;
+  x?: number;
+  y?: number;
+  z?: number;
+  isExpanded?: boolean;
 }
 
 export interface GraphLink {
@@ -24,12 +29,33 @@ export interface Message {
   timestamp: number;
 }
 
+export interface GraphAction {
+  action: "create" | "connect" | "update";
+  subject: {
+    id: string;
+    label: string;
+    category: string;
+    desc?: string;
+  };
+  object?: string;
+  relation?: string;
+}
+
+export interface AgentResponse {
+  markdown_reply: string;
+  graph_actions: GraphAction[];
+}
+
+export interface HandLandmark {
+  x: number;
+  y: number;
+  z: number;
+}
+
 export interface HandGesture {
   isPinching: boolean;
-  gestureMode: 'pointing' | 'zoom' | 'idle'; 
-  pinchDistance: number;
-  pointer: {
-    x: number;
-    y: number;
-  };
+  isOpenPalm: boolean;
+  pointer: { x: number; y: number };
+  pinchDistance?: number;
+  isZooming?: boolean;
 }
