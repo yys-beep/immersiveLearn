@@ -2,14 +2,12 @@ import React, { useState, useCallback } from 'react';
 import Scene from './components/Scene';
 import ChatInterface from './components/ChatInterface';
 import Tutorial from './components/Tutorial';
-import { generateGraphUpdate } from './services/geminiService';
-// FIX: Import from services/types
+import { generateGraphUpdate, fetchDeepDetail } from './services/geminiService';
 import { GraphData, Message, GraphNode } from './services/types';
 
-// FIX: Increased initial node value to 40 for bigger size
 const INITIAL_GRAPH: GraphData = {
   nodes: [
-    { id: 'immersilearn', label: 'ImmersiLearn', category: 'Root System', val: 40, desc: 'Your Augmented Knowledge Base' }
+    { id: 'immersilearn', label: 'ImmersiLearn', category: 'Root System', val: 40, desc: 'Your Augmented Knowledge Base', isExpanded: false }
   ],
   links: []
 };
@@ -51,6 +49,70 @@ const App: React.FC = () => {
     setHoveredNode(node);
   }, []);
 
+  const handleNodeProximate = useCallback(async (node: GraphNode) => {
+    if (isLoading) return; 
+    if (node.isExpanded) return;
+
+    console.log(`🚀 S-LoD Triggered for: ${node.label}`);
+    setIsLoading(true);
+
+    setGraphData(prev => ({
+      nodes: prev.nodes.map(n => n.id === node.id ? { ...n, isExpanded: true } : n),
+      links: prev.links
+    }));
+
+    const systemMsgId = Date.now().toString();
+    setMessages(prev => [...prev, {
+      id: systemMsgId,
+      role: 'model',
+      content: `🔍 **Semantic Zoom Activated**: Exploring micro-details of **${node.label}**...`,
+      timestamp: Date.now()
+    }]);
+
+    try {
+      const response = await fetchDeepDetail(node.label, node.desc || "");
+
+      setGraphData((currentData) => {
+        const newNodes = [...currentData.nodes];
+        const newLinks = [...currentData.links];
+        const nodeIds = new Set(newNodes.map(n => n.id));
+
+        if (response.graph_actions) {
+          response.graph_actions.forEach(action => {
+            if (action.action === 'create' || action.action === 'connect') {
+              if (action.subject && !nodeIds.has(action.subject.id)) {
+                newNodes.push({
+                  id: action.subject.id,
+                  label: action.subject.label,
+                  category: action.subject.category,
+                  desc: action.subject.desc,
+                  val: 15, 
+                  isExpanded: false
+                });
+                nodeIds.add(action.subject.id);
+                
+                const targetId = action.object || node.id; 
+                if (nodeIds.has(targetId)) {
+                    newLinks.push({
+                      source: action.subject.id,
+                      target: targetId,
+                      relation: action.relation || "detail"
+                    });
+                }
+              }
+            }
+          });
+        }
+        return { nodes: newNodes, links: newLinks };
+      });
+
+    } catch (e) {
+      console.error("Auto-expansion failed", e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isLoading]);
+
   const processUserMessage = async (text: string) => {
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -90,8 +152,8 @@ const App: React.FC = () => {
                   label: action.subject.label || action.subject.id,
                   category: action.subject.category || 'Concept',
                   desc: action.subject.desc,
-                  // FIX: Default new node size to 30 so they appear large
-                  val: 30 
+                  val: 30,
+                  isExpanded: false
                 });
                 nodeIds.add(action.subject.id);
               }
@@ -160,6 +222,7 @@ const App: React.FC = () => {
         graphData={graphData} 
         onNodeSelect={handleNodeSelect} 
         onNodeHover={handleNodeHover}
+        onNodeProximate={handleNodeProximate} 
       />
       
       <div className="absolute top-4 left-4 z-30 flex flex-col items-start w-64 pointer-events-none">
