@@ -4,7 +4,6 @@ import { AgentResponse } from "../types";
 const apiKey = process.env.API_KEY || "";
 const ai = new GoogleGenAI({ apiKey });
 
-// Define the schema for structured JSON output
 const graphActionSchema: Schema = {
   type: Type.OBJECT,
   properties: {
@@ -58,7 +57,7 @@ Output JSON strictly following the schema.
 
 export const generateGraphUpdate = async (
   userPrompt: string, 
-  currentContextNodes: string[] // List of existing node IDs to help AI connect back
+  currentContextNodes: string[] 
 ): Promise<AgentResponse> => {
   try {
     const model = "gemini-2.5-flash";
@@ -76,7 +75,7 @@ export const generateGraphUpdate = async (
         systemInstruction: SYSTEM_INSTRUCTION,
         responseMimeType: "application/json",
         responseSchema: responseSchema,
-        temperature: 0.3, // Lower temperature for more consistent graph structures
+        temperature: 0.3,
       }
     });
 
@@ -89,6 +88,53 @@ export const generateGraphUpdate = async (
     console.error("Gemini Graph Generation Error:", error);
     return {
       markdown_reply: "I'm having trouble connecting to the neural core. Please try again.",
+      graph_actions: []
+    };
+  }
+};
+
+export const fetchDeepDetail = async (
+  nodeLabel: string, 
+  nodeDesc: string = ""
+): Promise<AgentResponse> => {
+  try {
+    const model = "gemini-2.5-flash";
+    
+    const zoomPrompt = `
+      The user has performed a "Semantic Zoom" (moved camera very close) into the concept: "${nodeLabel}".
+      Context: ${nodeDesc}
+      
+      Task:
+      1. Generate 3-5 distinct, deeper sub-concepts or specific mechanisms related to "${nodeLabel}".
+      2. These new nodes should represent a "micro-view" or "detailed view" of the subject.
+      3. Connect them directly to "${nodeLabel}" (use "${nodeLabel}" as the object ID if possible, or assume context).
+      4. Keep descriptions concise but technical.
+      
+      Output JSON strictly following the defined schema.
+    `;
+
+    const response = await ai.models.generateContent({
+      model,
+      contents: [
+        { role: 'user', parts: [{ text: zoomPrompt }] }
+      ],
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        responseMimeType: "application/json",
+        responseSchema: responseSchema,
+        temperature: 0.3,
+      }
+    });
+
+    if (response.text) {
+      return JSON.parse(response.text) as AgentResponse;
+    }
+    
+    throw new Error("Empty response during semantic zoom");
+  } catch (error) {
+    console.error("Gemini S-LoD Error:", error);
+    return {
+      markdown_reply: "",
       graph_actions: []
     };
   }
