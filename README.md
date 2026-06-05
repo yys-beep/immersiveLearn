@@ -6,6 +6,8 @@
 
 **An AI-powered 3D Knowledge Graph visualization platform with hand gesture recognition.**
 
+🌐 **[Click here to view the Live Website](https://arimmersivelearn.netlify.app/)**
+
 Transform the way you learn by building dynamic, interactive knowledge architectures in immersive 3D space. ImmersiLearn uses Google's Gemini AI to construct personalized knowledge graphs from natural language conversations, powered by hand gesture recognition for seamless interaction.
 
 ---
